@@ -5,37 +5,68 @@ const topicKeywords = {
     'programming', 'tutorial', 'stack overflow', 'github', 'gitlab',
     'function', 'class', 'method', 'variable', 'debug', 'compile',
     'framework', 'library', 'npm', 'yarn', 'python', 'javascript',
-    'typescript', 'java', 'react', 'vue', 'angular', 'node'
+    'typescript', 'java', 'react', 'vue', 'angular', 'node',
+    // Vietnamese
+    'lập trình', 'phát triển', 'gỡ lỗi', 'hàm', 'biến', 'thư viện', 'khung', 'mã nguồn', 'hướng dẫn', 'tài liệu', 'dự án', 'mã hóa', 'chạy thử', 'cài đặt', 'cập nhật', 'sửa lỗi', 'github', 'gitlab', 'hàm số', 'lớp', 'phương thức', 'biến số'
   ],
   'Shopping': [
     'buy', 'cart', 'price', 'order', 'checkout', 'deal', 'discount',
     'sale', 'shop', 'store', 'purchase', 'product', 'add to cart',
-    'shipping', 'delivery', 'coupon', 'promo', 'offer'
+    'shipping', 'delivery', 'coupon', 'promo', 'offer',
+    // Vietnamese
+    'mua', 'giỏ hàng', 'giá', 'đặt hàng', 'thanh toán', 'khuyến mãi', 'giảm giá', 'bán', 'cửa hàng', 'sản phẩm', 'vận chuyển', 'giao hàng', 'phiếu giảm giá', 'ưu đãi', 'đơn hàng', 'thêm vào giỏ'
   ],
   'News': [
     'news', 'article', 'breaking', 'update', 'report', 'latest',
-    'headline', 'story', 'press', 'announcement', 'wire'
+    'headline', 'story', 'press', 'announcement', 'wire',
+    // Vietnamese
+    'tin tức', 'bài báo', 'cập nhật', 'thời sự', 'bản tin', 'phóng sự', 'tin nóng', 'tin mới', 'thông báo', 'báo chí', 'tin nhanh', 'tin nổi bật'
   ],
   'Learning': [
     'tutorial', 'course', 'guide', 'how to', 'learn', 'lesson',
-    'education', 'training', 'study', 'class', 'lecture', 'workshop'
+    'education', 'training', 'study', 'class', 'lecture', 'workshop',
+    // Vietnamese
+    'học', 'bài học', 'khóa học', 'hướng dẫn', 'giáo dục', 'đào tạo', 'nghiên cứu', 'bài giảng', 'lớp học', 'ôn tập', 'kiến thức', 'bài tập', 'bài kiểm tra', 'bài thi', 'tự học', 'trắc nghiệm'
   ],
   'Social': [
     'profile', 'post', 'message', 'friend', 'share', 'comment',
-    'like', 'follow', 'subscribe', 'feed', 'timeline', 'notification'
+    'like', 'follow', 'subscribe', 'feed', 'timeline', 'notification',
+    // Vietnamese
+    'trang cá nhân', 'bài đăng', 'tin nhắn', 'bạn bè', 'chia sẻ', 'bình luận', 'thích', 'theo dõi', 'đăng ký', 'bảng tin', 'dòng thời gian', 'thông báo', 'kết bạn', 'tương tác'
   ],
   'Entertainment': [
     'watch', 'video', 'movie', 'tv', 'show', 'stream', 'play',
-    'game', 'music', 'song', 'album', 'podcast', 'entertainment'
+    'game', 'music', 'song', 'album', 'podcast', 'entertainment',
+    // Vietnamese
+    'xem', 'phim', 'video', 'truyền hình', 'chương trình', 'trực tiếp', 'chơi', 'trò chơi', 'âm nhạc', 'bài hát', 'album', 'giải trí', 'ca nhạc', 'podcast', 'phim ảnh', 'ca sĩ', 'nghệ sĩ'
   ],
   'Finance': [
     'stock', 'market', 'trading', 'investment', 'portfolio', 'finance',
-    'bank', 'credit', 'loan', 'crypto', 'bitcoin', 'currency'
+    'bank', 'credit', 'loan', 'crypto', 'bitcoin', 'currency',
+    // Vietnamese
+    'chứng khoán', 'thị trường', 'giao dịch', 'đầu tư', 'tài chính', 'ngân hàng', 'tín dụng', 'vay', 'tiền ảo', 'bitcoin', 'tiền tệ', 'ví điện tử', 'lãi suất', 'cổ phiếu', 'vàng', 'bảo hiểm'
   ],
   'Sports': [
     'score', 'game', 'match', 'team', 'player', 'football', 'basketball',
-    'soccer', 'tennis', 'baseball', 'hockey', 'sport', 'championship'
+    'soccer', 'tennis', 'baseball', 'hockey', 'sport', 'championship',
+    // Vietnamese
+    'tỉ số', 'trận đấu', 'đội', 'cầu thủ', 'bóng đá', 'bóng rổ', 'quần vợt', 'bóng chày', 'khúc côn cầu', 'thể thao', 'giải đấu', 'bàn thắng', 'vận động viên', 'trận chung kết', 'bóng chuyền', 'bơi lội'
   ]
+};
+
+// Map of all categories (can be extended by user)
+var categories = typeof categories !== 'undefined' ? categories : {
+  'Development': { color: 'blue', icon: 'code' },
+  'Entertainment': { color: 'orange', icon: 'play' },
+  'Social': { color: 'pink', icon: 'people' },
+  'News': { color: 'grey', icon: 'newspaper' },
+  'Finance': { color: 'green', icon: 'trending' },
+  'Sports': { color: 'purple', icon: 'sport' },
+  'Shopping': { color: 'cyan', icon: 'cart' },
+  'Learning': { color: 'yellow', icon: 'school' },
+  'Communication': { color: 'red', icon: 'email' },
+  'Work': { color: 'blue', icon: 'briefcase' },
+  'Other': { color: 'grey', icon: 'more' }
 };
 
 /**
@@ -126,20 +157,6 @@ function classifyByURLPattern(url) {
  * @returns {Object} - Category object with color and icon
  */
 function getCategoryInfo(category) {
-  const categories = {
-    'Development': { color: 'blue', icon: 'code' },
-    'Entertainment': { color: 'orange', icon: 'play' },
-    'Social': { color: 'pink', icon: 'people' },
-    'News': { color: 'grey', icon: 'newspaper' },
-    'Finance': { color: 'green', icon: 'trending' },
-    'Sports': { color: 'purple', icon: 'sport' },
-    'Shopping': { color: 'cyan', icon: 'cart' },
-    'Learning': { color: 'yellow', icon: 'school' },
-    'Communication': { color: 'red', icon: 'email' },
-    'Work': { color: 'blue', icon: 'briefcase' },
-    'Other': { color: 'grey', icon: 'more' }
-  };
-
   return categories[category] || categories['Other'];
 }
 
@@ -231,6 +248,16 @@ function addKeywordRule(category, keyword) {
 }
 
 /**
+ * Add a new category
+ * @param {string} name - Category name
+ * @param {string} color - Category color
+ * @param {string} icon - Category icon name
+ */
+function addCategory(name, color, icon) {
+  categories[name] = { color, icon };
+}
+
+/**
  * Remove keyword rule
  * @param {string} category - Category to remove keyword from
  * @param {string} keyword - Keyword to remove
@@ -259,6 +286,8 @@ if (typeof module !== 'undefined' && module.exports) {
     addKeywordRule,
     removeKeywordRule,
     getKeywordRules,
-    topicKeywords
+    addCategory,
+    topicKeywords,
+    categories
   };
 }

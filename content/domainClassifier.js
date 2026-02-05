@@ -1,5 +1,5 @@
 // Category definitions with colors and icons
-const categories = {
+var categories = typeof categories !== 'undefined' ? categories : {
   'Development': { color: 'blue', icon: 'code' },
   'Entertainment': { color: 'orange', icon: 'play' },
   'Social': { color: 'pink', icon: 'people' },
@@ -40,6 +40,10 @@ const domainRules = {
   'hbo.com': 'Entertainment',
   'spotify.com': 'Entertainment',
   'soundcloud.com': 'Entertainment',
+  'nhaccuatui.com': 'Entertainment',
+  'zingmp3.vn': 'Entertainment',
+  'fptplay.vn': 'Entertainment',
+  'vieon.vn': 'Entertainment',
 
   // Social
   'facebook.com': 'Social',
@@ -53,6 +57,9 @@ const domainRules = {
   'whatsapp.com': 'Social',
   'telegram.org': 'Social',
   'discord.com': 'Social',
+  'zalo.me': 'Social',
+  'gapo.vn': 'Social',
+  'lotus.vn': 'Social',
 
   // News (many domains in same category)
   'cnn.com': 'News',
@@ -78,6 +85,15 @@ const domainRules = {
   'dantri.com.vn': 'News',
   'kinhtedothi.vn': 'News',
   'nld.com.vn': 'News',
+  'kenh14.vn': 'News',
+  'znews.vn': 'News',
+  'zingnews.vn': 'News',
+  '24h.com.vn': 'News',
+  'vtv.vn': 'News',
+  'laodong.vn': 'News',
+  'soha.vn': 'News',
+  'cafef.vn': 'News',
+  'cafebiz.vn': 'News',
 
   // Finance
   'finance.yahoo.com': 'Finance',
@@ -90,6 +106,11 @@ const domainRules = {
   'tradingview.com': 'Finance',
   'seekingalpha.com': 'Finance',
   'yahoofinance.com': 'Finance',
+  'momo.vn': 'Finance',
+  'vnpay.vn': 'Finance',
+  'zalopay.vn': 'Finance',
+  'ssi.com.vn': 'Finance',
+  'hsc.com.vn': 'Finance',
 
   // Sports
   'espn.com': 'Sports',
@@ -102,6 +123,9 @@ const domainRules = {
   'nfl.com': 'Sports',
   'mlb.com': 'Sports',
   'nhl.com': 'Sports',
+  'bongdaplus.vn': 'Sports',
+  'thethao247.vn': 'Sports',
+  'bongda.com.vn': 'Sports',
 
   // Shopping
   'amazon.com': 'Shopping',
@@ -117,9 +141,17 @@ const domainRules = {
 
   // Vietnamese Shopping
   'shopee.vn': 'Shopping',
-  'lazada.com': 'Shopping',
+  'lazada.vn': 'Shopping',
+  'lazada.com.vn': 'Shopping',
   'tiki.vn': 'Shopping',
   'sendo.vn': 'Shopping',
+  'thegioididong.com': 'Shopping',
+  'fptshop.com.vn': 'Shopping',
+  'dienmayxanh.com': 'Shopping',
+  'cellphones.com.vn': 'Shopping',
+  'bachhoaxanh.com': 'Shopping',
+  'concung.com': 'Shopping',
+  'kidsplaza.vn': 'Shopping',
 
   // Learning
   'coursera.org': 'Learning',
@@ -132,6 +164,10 @@ const domainRules = {
   'freecodecamp.org': 'Learning',
   'duolingo.com': 'Learning',
   'brilliant.org': 'Learning',
+  'hocmai.vn': 'Learning',
+  'unica.vn': 'Learning',
+  'edumall.vn': 'Learning',
+  'tienganh123.com': 'Learning',
 
   // Email & Communication
   'gmail.com': 'Communication',
@@ -263,6 +299,16 @@ function addDomainRule(domain, category) {
 }
 
 /**
+ * Add a new category
+ * @param {string} name - Category name
+ * @param {string} color - Category color
+ * @param {string} icon - Category icon name
+ */
+function addCategory(name, color, icon) {
+  categories[name] = { color, icon };
+}
+
+/**
  * Remove a domain rule
  * @param {string} domain - Domain to remove
  */
@@ -285,6 +331,7 @@ if (typeof module !== 'undefined' && module.exports) {
     getDomainRules,
     addDomainRule,
     removeDomainRule,
+    addCategory,
     getCategories,
     categories,
     domainRules
