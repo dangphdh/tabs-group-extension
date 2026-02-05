@@ -1,0 +1,17 @@
+{
+  "name": "smart-tab-groups",
+  "version": "1.0.0",
+  "description": "Chrome extension to automatically group browser tabs by domain and topic",
+  "scripts": {
+    "build:icons": "echo 'Convert icon.svg to PNG files using an online tool or ImageMagick'",
+    "test": "echo 'Load extension in Chrome at chrome://extensions/ to test'"
+  },
+  "keywords": [
+    "chrome-extension",
+    "tab-groups",
+    "productivity",
+    "browser-extension"
+  ],
+  "author": "",
+  "license": "MIT"
+}

@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Smart Tab Groups</title>
+  <link rel="stylesheet" href="popup.css">
+</head>
+<body>
+  <div class="container">
+    <!-- Header -->
+    <header class="header">
+      <h1>Smart Tab Groups</h1>
+      <p class="subtitle">Organize your tabs automatically</p>
+    </header>
+
+    <!-- Controls Section -->
+    <section class="controls">
+      <div class="control-group">
+        <label for="grouping-strategy">Grouping Strategy:</label>
+        <select id="grouping-strategy">
+          <option value="mixed">Mixed (Domain + Keywords)</option>
+          <option value="domain">By Domain Only</option>
+          <option value="keywords">By Keywords Only</option>
+        </select>
+      </div>
+
+      <div class="control-group">
+        <label class="checkbox-label">
+          <input type="checkbox" id="auto-collapse" checked>
+          <span>Auto-collapse inactive groups</span>
+        </label>
+      </div>
+    </section>
+
+    <!-- Loading State -->
+    <div id="loading" class="loading-state hidden">
+      <div class="spinner"></div>
+      <p>Analyzing tabs...</p>
+    </div>
+
+    <!-- Preview Section -->
+    <section id="preview-section" class="preview-section">
+      <div class="preview-header">
+        <h2>Proposed Groups</h2>
+        <span id="tab-count" class="tab-count">0 tabs</span>
+      </div>
+
+      <div id="groups-container" class="groups-container">
+        <!-- Groups will be dynamically inserted here -->
+      </div>
+
+      <div id="no-tabs-message" class="no-tabs-message hidden">
+        <p>No tabs found to group</p>
+      </div>
+    </section>
+
+    <!-- Action Buttons -->
+    <footer class="actions">
+      <button id="refresh-btn" class="btn btn-secondary">
+        <span class="btn-icon">🔄</span>
+        Refresh Analysis
+      </button>
+      <button id="edit-rules-btn" class="btn btn-secondary">
+        <span class="btn-icon">✏️</span>
+        Edit Rules
+      </button>
+      <button id="apply-btn" class="btn btn-primary">
+        <span class="btn-icon">✅</span>
+        Apply Groups
+      </button>
+    </footer>
+
+    <!-- Status Message -->
+    <div id="status-message" class="status-message hidden"></div>
+  </div>
+
+  <script src="../content/domainClassifier.js"></script>
+  <script src="../content/tabAnalyzer.js"></script>
+  <script src="../content/learningEngine.js"></script>
+  <script src="popup.js"></script>
+</body>
+</html>

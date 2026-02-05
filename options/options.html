@@ -1,0 +1,225 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Smart Tab Groups - Settings</title>
+  <link rel="stylesheet" href="options.css">
+</head>
+<body>
+  <div class="container">
+    <!-- Header -->
+    <header class="header">
+      <h1>Smart Tab Groups Settings</h1>
+      <p class="subtitle">Customize how your tabs are grouped</p>
+    </header>
+
+    <!-- Main Content -->
+    <main class="content">
+      <!-- Section: Auto-group Settings -->
+      <section class="section">
+        <h2>Auto-group Settings</h2>
+
+        <div class="setting-item">
+          <label class="setting-label">
+            <input type="checkbox" id="auto-group-new-tabs">
+            <span>Automatically group new tabs</span>
+          </label>
+          <p class="setting-description">
+            When enabled, new tabs will be automatically grouped after a delay.
+            This may not work well with all browsing patterns.
+          </p>
+        </div>
+
+        <div class="setting-item">
+          <label for="auto-group-delay" class="setting-label">
+            Delay before auto-grouping (milliseconds):
+          </label>
+          <input type="number" id="auto-group-delay" min="1000" max="30000" step="1000" value="5000">
+          <p class="setting-description">
+            How long to wait before automatically grouping a new tab (1000-30000ms).
+            Default: 5000ms (5 seconds).
+          </p>
+        </div>
+      </section>
+
+      <!-- Section: Smart Learning -->
+      <section class="section">
+        <h2>Smart Learning Settings</h2>
+        <p class="section-description">
+          The extension can learn from your actions to automatically improve grouping over time.
+        </p>
+
+        <div class="learning-stats" id="learning-stats">
+          <div class="stat-item">
+            <span class="stat-label">Total Actions Learned:</span>
+            <span class="stat-value" id="stat-total">0</span>
+          </div>
+          <div class="stat-item">
+            <span class="stat-label">Tab Moves:</span>
+            <span class="stat-value" id="stat-moves">0</span>
+          </div>
+          <div class="stat-item">
+            <span class="stat-label">Group Renames:</span>
+            <span class="stat-value" id="stat-renames">0</span>
+          </div>
+          <div class="stat-item">
+            <span class="stat-label">Learned Rules:</span>
+            <span class="stat-value" id="stat-rules">0</span>
+          </div>
+        </div>
+
+        <div class="setting-item">
+          <label class="setting-label">
+            <input type="checkbox" id="learning-enabled">
+            <span>Enable smart learning</span>
+          </label>
+          <p class="setting-description">
+            Allow the extension to learn from your tab organizing actions.
+          </p>
+        </div>
+
+        <div class="setting-item">
+          <label class="setting-label">
+            <input type="checkbox" id="learn-from-moves" checked>
+            <span>Learn from moving tabs between groups</span>
+          </label>
+        </div>
+
+        <div class="setting-item">
+          <label class="setting-label">
+            <input type="checkbox" id="learn-from-renames" checked>
+            <span>Learn from renaming groups</span>
+          </label>
+        </div>
+
+        <div class="setting-item">
+          <label class="setting-label">
+            <input type="checkbox" id="learn-from-ungroups" checked>
+            <span>Learn from ungrouping tabs</span>
+          </label>
+        </div>
+
+        <div class="setting-item">
+          <label for="min-confidence" class="setting-label">
+            Minimum confidence level:
+          </label>
+          <input type="number" id="min-confidence" min="1" max="10" value="2">
+          <p class="setting-description">
+            How many times to confirm a pattern before applying it (1-10).
+          </p>
+        </div>
+
+        <div class="setting-item">
+          <h3>Learned Domain Rules</h3>
+          <div id="learned-rules-list" class="rules-list">
+            <!-- Learned rules will be rendered here -->
+          </div>
+          <div class="learned-actions">
+            <button id="refresh-learned" class="btn btn-secondary">Refresh</button>
+            <button id="reset-learning" class="btn btn-danger">Reset All Learning</button>
+          </div>
+        </div>
+      </section>
+
+      <!-- Section: Custom Domain Rules -->
+      <section class="section">
+        <h2>Custom Domain Rules</h2>
+        <p class="section-description">
+          Add custom rules to automatically categorize specific domains.
+        </p>
+
+        <div class="rule-form">
+          <input type="text" id="domain-input" placeholder="Enter domain (e.g., example.com)">
+          <select id="domain-category-select">
+            <option value="">Select category...</option>
+            <option value="Development">Development</option>
+            <option value="Entertainment">Entertainment</option>
+            <option value="Social">Social</option>
+            <option value="News">News</option>
+            <option value="Finance">Finance</option>
+            <option value="Sports">Sports</option>
+            <option value="Shopping">Shopping</option>
+            <option value="Learning">Learning</option>
+            <option value="Communication">Communication (Email)</option>
+            <option value="Work">Work (Office)</option>
+            <option value="Other">Other</option>
+          </select>
+          <button id="add-domain-rule" class="btn btn-primary">Add Rule</button>
+        </div>
+
+        <div id="domain-rules-list" class="rules-list">
+          <!-- Domain rules will be rendered here -->
+        </div>
+      </section>
+
+      <!-- Section: Custom Keyword Rules -->
+      <section class="section">
+        <h2>Custom Keyword Rules</h2>
+        <p class="section-description">
+          Add custom keywords to detect specific topics in page titles.
+        </p>
+
+        <div class="rule-form">
+          <select id="keyword-category-select">
+            <option value="">Select category...</option>
+            <option value="Development">Development</option>
+            <option value="Entertainment">Entertainment</option>
+            <option value="Social">Social</option>
+            <option value="News">News</option>
+            <option value="Finance">Finance</option>
+            <option value="Sports">Sports</option>
+            <option value="Shopping">Shopping</option>
+            <option value="Learning">Learning</option>
+            <option value="Communication">Communication (Email)</option>
+            <option value="Work">Work (Office)</option>
+            <option value="Other">Other</option>
+          </select>
+          <input type="text" id="keyword-input" placeholder="Enter keyword (e.g., tutorial)">
+          <button id="add-keyword-rule" class="btn btn-primary">Add Keyword</button>
+        </div>
+
+        <div id="keyword-rules-list" class="rules-list">
+          <!-- Keyword rules will be rendered here -->
+        </div>
+      </section>
+
+      <!-- Section: Category Management -->
+      <section class="section">
+        <h2>Category Colors</h2>
+        <p class="section-description">
+          Customize the color for each category.
+        </p>
+
+        <div id="category-colors-list" class="category-colors-list">
+          <!-- Category colors will be rendered here -->
+        </div>
+      </section>
+
+      <!-- Section: Import/Export -->
+      <section class="section">
+        <h2>Import / Export Settings</h2>
+        <p class="section-description">
+          Save your custom rules or import rules from another device.
+        </p>
+
+        <div class="import-export-buttons">
+          <button id="export-settings" class="btn btn-secondary">Export Settings</button>
+          <label class="btn btn-secondary">
+            Import Settings
+            <input type="file" id="import-settings" accept=".json" class="hidden">
+          </label>
+          <button id="reset-settings" class="btn btn-danger">Reset to Defaults</button>
+        </div>
+      </section>
+    </main>
+
+    <!-- Footer -->
+    <footer class="footer">
+      <p>Smart Tab Groups v1.0.0</p>
+    </footer>
+  </div>
+
+  <script src="options.js"></script>
+</body>
+</html>
