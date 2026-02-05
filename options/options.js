@@ -148,6 +148,42 @@ function setupEventListeners() {
   elements.importSettingsInput.addEventListener('change', importSettings);
   elements.resetSettingsBtn.addEventListener('click', resetSettings);
 
+  // Event delegation for delete buttons
+  elements.domainRulesList.addEventListener('click', (e) => {
+    const btn = e.target.closest('.delete-rule-btn');
+    if (btn) {
+      const domain = btn.dataset.domain;
+      if (domain) deleteDomainRule(domain);
+    }
+  });
+
+  elements.keywordRulesList.addEventListener('click', (e) => {
+    const btn = e.target.closest('.delete-rule-btn');
+    if (btn) {
+      const category = btn.dataset.category;
+      const keyword = btn.dataset.keyword;
+      if (category && keyword) deleteKeywordRule(category, keyword);
+    }
+  });
+
+  elements.learnedRulesList.addEventListener('click', (e) => {
+    const btn = e.target.closest('.delete-rule-btn');
+    if (btn) {
+      const domain = btn.dataset.domain;
+      if (domain) deleteLearnedRule(domain);
+    }
+  });
+
+  // Event delegation for category color changes
+  elements.categoryColorsList.addEventListener('change', (e) => {
+    const target = e.target;
+    if (target.classList.contains('category-color-select')) {
+      const category = target.dataset.category;
+      const color = target.value;
+      if (category && color) updateCategoryColor(category, color);
+    }
+  });
+
   // Learning settings
   elements.learningEnabled.addEventListener('change', saveLearningSettings);
   elements.learnFromMoves.addEventListener('change', saveLearningSettings);
@@ -234,7 +270,7 @@ function renderDomainRules() {
       <div class="rule-item">
         <span class="rule-domain">${domain}</span>
         <span class="rule-category ${categoryClass}">${rule.category}</span>
-        <button class="delete-rule-btn" onclick="deleteDomainRule('${domain}')">×</button>
+        <button class="delete-rule-btn" data-domain="${domain}">×</button>
       </div>
     `;
   }).join('');
@@ -330,7 +366,7 @@ function renderKeywordRules() {
         <div class="rule-item">
           <span class="rule-keyword">${keyword}</span>
           <span class="rule-category ${categoryClass}">${category}</span>
-          <button class="delete-rule-btn" onclick="deleteKeywordRule('${category}', '${keyword}')">×</button>
+          <button class="delete-rule-btn" data-category="${category}" data-keyword="${keyword}">×</button>
         </div>
       `;
     });
@@ -351,7 +387,7 @@ function renderCategoryColors() {
     return `
       <div class="category-color-item">
         <span class="category-name">${category}</span>
-        <select class="category-color-select" onchange="updateCategoryColor('${category}', this.value)">
+        <select class="category-color-select" data-category="${category}">
           ${colorOptions.map(color => `
             <option value="${color}" ${currentColor === color ? 'selected' : ''}>
               ${color.charAt(0).toUpperCase() + color.slice(1)}
@@ -593,7 +629,7 @@ async function renderLearnedRules() {
             <span class="rule-domain">${domain}</span>
             <span class="rule-category ${categoryClass}">${rule.category}</span>
             <span class="learned-confidence">Confidence: <strong>${rule.confidence}</strong></span>
-            <button class="delete-rule-btn" onclick="deleteLearnedRule('${domain}')">×</button>
+            <button class="delete-rule-btn" data-domain="${domain}">×</button>
           </div>
         `;
       }).join('');
@@ -627,9 +663,6 @@ async function deleteLearnedRule(domain) {
     }
   }
 }
-
-// Make function globally accessible for onclick
-window.deleteLearnedRule = deleteLearnedRule;
 
 /**
  * Refresh learned data

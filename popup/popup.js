@@ -260,7 +260,7 @@ function createGroupCard(categoryName, group) {
   const color = colorMap[group.color] || colorMap['grey'];
 
   card.innerHTML = `
-    <div class="group-header" onclick="toggleGroup(this)">
+    <div class="group-header">
       <div class="group-color-indicator" style="background: ${color}"></div>
       <div class="group-info">
         <div class="group-name">${categoryName}</div>
@@ -269,9 +269,16 @@ function createGroupCard(categoryName, group) {
       <span class="expand-icon">▼</span>
     </div>
     <div class="group-tabs">
-      ${group.tabs.map(tab => createTabItem(tab)).join('')}
     </div>
   `;
+
+  const header = card.querySelector('.group-header');
+  header.addEventListener('click', () => toggleGroup(header));
+
+  const tabsContainer = card.querySelector('.group-tabs');
+  group.tabs.forEach(tab => {
+    tabsContainer.appendChild(createTabItem(tab));
+  });
 
   // Make tabs draggable
   setupDragAndDrop(card);
@@ -284,15 +291,26 @@ function createGroupCard(categoryName, group) {
  */
 function createTabItem(tab) {
   const domain = new URL(tab.url).hostname;
-  const faviconUrl = `chrome://favicon/${tab.url}`;
+  const faviconUrl = `chrome-extension://${chrome.runtime.id}/_favicon/?pageUrl=${encodeURIComponent(tab.url)}&size=32`;
 
-  return `
-    <div class="tab-item" draggable="true" data-tab-id="${tab.id}">
-      <img class="tab-favicon" src="${faviconUrl}" onerror="this.classList.add('placeholder')">
-      <span class="tab-title" title="${tab.title}">${tab.title}</span>
-      <span class="tab-domain">${domain}</span>
-    </div>
+  const item = document.createElement('div');
+  item.className = 'tab-item';
+  item.draggable = true;
+  item.dataset.tabId = tab.id;
+
+  item.innerHTML = `
+    <img class="tab-favicon" src="${faviconUrl}">
+    <span class="tab-title" title="${tab.title}">${tab.title}</span>
+    <span class="tab-domain">${domain}</span>
   `;
+
+  const img = item.querySelector('.tab-favicon');
+  img.addEventListener('error', () => {
+    img.classList.add('placeholder');
+    img.src = '../icons/icon16.png'; // Fallback icon
+  });
+
+  return item;
 }
 
 /**

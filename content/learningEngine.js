@@ -52,7 +52,8 @@ function setupLearningListeners() {
   // Listen for tab group updates (renames, color changes)
   if (chrome.tabGroups) {
     chrome.tabGroups.onUpdated.addListener((group, changeInfo) => {
-      if (!changeInfo || (!changeInfo.title && !changeInfo.color)) return;
+      if (!changeInfo) return;
+      if (!changeInfo.title && !changeInfo.color) return;
 
       chrome.storage.local.get([STORAGE_KEYS.USER_PREFERENCES], (result) => {
         const prefs = result.userPreferences || DEFAULT_SETTINGS;
