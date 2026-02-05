@@ -54,8 +54,9 @@ const elements = {
 document.addEventListener('DOMContentLoaded', initialize);
 
 async function initialize() {
-  // Load saved settings
+  // Load settings and custom rules
   await loadSettings();
+  await applyCustomRules();
 
   // Set up event listeners
   elements.refreshBtn.addEventListener('click', analyzeAndRender);
@@ -66,6 +67,48 @@ async function initialize() {
 
   // Initial analysis
   await analyzeAndRender();
+}
+
+/**
+ * Apply custom rules from storage to the classifiers
+ */
+async function applyCustomRules() {
+  return new Promise((resolve) => {
+    chrome.storage.local.get(
+      ['customDomainRules', 'customKeywordRules', 'categoryColors'],
+      (result) => {
+        // Apply custom category colors
+        if (result.categoryColors) {
+          for (const [category, color] of Object.entries(result.categoryColors)) {
+            if (typeof addCategory === 'function') {
+              addCategory(category, color, 'more'); // Default icon
+            }
+          }
+        }
+
+        // Apply custom domain rules
+        if (result.customDomainRules) {
+          for (const [domain, rule] of Object.entries(result.customDomainRules)) {
+            if (typeof addDomainRule === 'function') {
+              addDomainRule(domain, rule.category);
+            }
+          }
+        }
+
+        // Apply custom keyword rules
+        if (result.customKeywordRules) {
+          for (const [category, keywords] of Object.entries(result.customKeywordRules)) {
+            keywords.forEach(keyword => {
+              if (typeof addKeywordRule === 'function') {
+                addKeywordRule(category, keyword);
+              }
+            });
+          }
+        }
+        resolve();
+      }
+    );
+  });
 }
 
 /**

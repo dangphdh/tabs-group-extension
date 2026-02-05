@@ -1,5 +1,5 @@
 // Keyword-based classification (SECONDARY METHOD)
-const topicKeywords = {
+var topicKeywords = {
   'Development': [
     'code', 'bug', 'api', 'commit', 'pr', 'repo', 'documentation',
     'programming', 'tutorial', 'stack overflow', 'github', 'gitlab',
@@ -98,7 +98,10 @@ function classifyByTitle(title) {
     const bestCategory = Object.entries(scores).reduce((a, b) =>
       a[1] > b[1] ? a : b
     )[0];
-    return getCategoryInfo(bestCategory);
+    return {
+      category: bestCategory,
+      ...getCategoryInfo(bestCategory)
+    };
   }
 
   return null;
@@ -143,7 +146,10 @@ function classifyByURLPattern(url) {
   for (const [category, patternList] of Object.entries(patterns)) {
     for (const pattern of patternList) {
       if (lower.includes(pattern)) {
-        return getCategoryInfo(category);
+        return {
+          category,
+          ...getCategoryInfo(category)
+        };
       }
     }
   }

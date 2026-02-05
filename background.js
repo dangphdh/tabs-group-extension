@@ -1,7 +1,8 @@
 // Background service worker for Smart Tab Groups
 
-// Import learning engine
+// Import learning engine and classification tools
 importScripts('content/domainClassifier.js');
+importScripts('content/tabAnalyzer.js');
 importScripts('content/learningEngine.js');
 
 // Listen for extension installation
@@ -351,19 +352,68 @@ async function autoGroupTab(tab) {
 
 /**
  * Classify a tab for auto-grouping
- * Simplified version for background service worker
+ * Improved version for background service worker that uses full classifiers and custom rules
  */
 async function classifyTabForAutoGroup(tab) {
-  // Get custom and learned rules from storage
+  // Use the full tabAnalyzer.js logic which we've imported
+  if (typeof classifyTab === 'function') {
+    // We need to apply custom rules to the global state first
+    await applyCustomRulesToState();
+    return classifyTab(tab, classifyByDomain);
+  }
+
+  // Fallback to simplified version if tabAnalyzer.js is not loaded correctly
+  // (though it should be via importScripts)
+  return classifyTabFallback(tab);
+}
+
+/**
+ * Apply custom rules from storage to the classifiers' global state
+ */
+async function applyCustomRulesToState() {
+  const result = await new Promise((resolve) => {
+    chrome.storage.local.get(['customDomainRules', 'customKeywordRules', 'categoryColors'], resolve);
+  });
+
+  // Apply custom category colors
+  if (result.categoryColors) {
+    for (const [category, color] of Object.entries(result.categoryColors)) {
+      if (typeof addCategory === 'function') {
+        addCategory(category, color, 'more');
+      }
+    }
+  }
+
+  // Apply custom domain rules
+  if (result.customDomainRules) {
+    for (const [domain, rule] of Object.entries(result.customDomainRules)) {
+      if (typeof addDomainRule === 'function') {
+        addDomainRule(domain, rule.category);
+      }
+    }
+  }
+
+  // Apply custom keyword rules
+  if (result.customKeywordRules) {
+    for (const [category, keywords] of Object.entries(result.customKeywordRules)) {
+      keywords.forEach(keyword => {
+        if (typeof addKeywordRule === 'function') {
+          addKeywordRule(category, keyword);
+        }
+      });
+    }
+  }
+}
+
+/**
+ * Simplified fallback classification (subset of the full logic)
+ */
+async function classifyTabFallback(tab) {
+  // Original simplified logic
   const result = await new Promise((resolve) => {
     chrome.storage.local.get(['customDomainRules', 'customKeywordRules'], resolve);
   });
-
-  const customDomainRules = result.customDomainRules || {};
-  const customKeywordRules = result.customKeywordRules || {};
-
-  // Get learned rules (highest priority)
-  const learnedRules = await getLearnedDomainRules();
+  // ... continue with original logic
 
   // Default domain rules (simplified subset)
   const defaultDomainRules = {

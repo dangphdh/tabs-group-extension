@@ -14,7 +14,7 @@ var categories = typeof categories !== 'undefined' ? categories : {
 };
 
 // Domain → Category mapping (one category can have multiple domains)
-const domainRules = {
+var domainRules = {
   // Development
   'github.com': 'Development',
   'stackoverflow.com': 'Development',
