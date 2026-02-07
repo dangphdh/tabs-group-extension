@@ -254,7 +254,14 @@ var domainRules = {
  * @returns {Object|null} - Category object with color and icon, or null if no match
  */
 function classifyByDomain(url) {
+  if (!url || typeof url !== 'string') return null;
+
   try {
+    // Basic check for protocol
+    if (!url.includes('://')) {
+      return null;
+    }
+
     const urlObj = new URL(url);
     const hostname = urlObj.hostname;
 
@@ -276,7 +283,7 @@ function classifyByDomain(url) {
 
     return null;
   } catch (e) {
-    console.error('Error parsing URL:', url, e);
+    // Gracefully handle invalid URLs without flooding the console
     return null;
   }
 }

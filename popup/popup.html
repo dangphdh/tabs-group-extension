@@ -14,8 +14,29 @@
       <p class="subtitle">Organize your tabs automatically</p>
     </header>
 
-    <!-- Controls Section -->
-    <section class="controls">
+    <!-- Tab Navigation -->
+    <nav class="tab-nav">
+      <button id="nav-propose" class="nav-btn active">Propose Groups</button>
+      <button id="nav-manage" class="nav-btn">Manage Active</button>
+    </nav>
+
+    <!-- Search & Filter Section -->
+    <section class="search-filter-section">
+      <div class="search-container">
+        <span class="search-icon">🔍</span>
+        <input type="text" id="search-input" placeholder="Search tabs by title or URL..." />
+        <button id="clear-search-btn" class="clear-search-btn hidden">✕</button>
+      </div>
+      <div class="filter-container">
+        <label for="category-filter">Filter:</label>
+        <select id="category-filter">
+          <option value="all">All Categories</option>
+        </select>
+      </div>
+    </section>
+
+    <!-- Controls Section (only for Propose) -->
+    <section id="propose-controls" class="controls">
       <div class="control-group">
         <label for="grouping-strategy">Grouping Strategy:</label>
         <select id="grouping-strategy">
@@ -40,7 +61,7 @@
     </div>
 
     <!-- Preview Section -->
-    <section id="preview-section" class="preview-section">
+    <section id="propose-section" class="preview-section">
       <div class="preview-header">
         <h2>Proposed Groups</h2>
         <span id="tab-count" class="tab-count">0 tabs</span>
@@ -55,19 +76,42 @@
       </div>
     </section>
 
+    <!-- Manage Section -->
+    <section id="manage-section" class="preview-section hidden">
+      <div class="preview-header">
+        <h2>Active Groups & Tabs</h2>
+        <button id="ungroup-all-btn" class="btn-text">Ungroup All</button>
+      </div>
+
+      <div id="active-groups-container" class="groups-container">
+        <!-- Active groups and tabs will be inserted here -->
+      </div>
+
+      <div id="no-active-groups-message" class="no-tabs-message hidden">
+        <p>No active tab groups found</p>
+      </div>
+
+      <div class="ungrouped-section">
+        <h3>Ungrouped Tabs</h3>
+        <div id="ungrouped-tabs-container" class="ungrouped-tabs-container">
+          <!-- Ungrouped tabs will be inserted here -->
+        </div>
+      </div>
+    </section>
+
     <!-- Action Buttons -->
     <footer class="actions">
       <button id="refresh-btn" class="btn btn-secondary">
         <span class="btn-icon">🔄</span>
-        Refresh Analysis
+        Refresh
       </button>
       <button id="edit-rules-btn" class="btn btn-secondary">
         <span class="btn-icon">✏️</span>
-        Edit Rules
+        Settings
       </button>
       <button id="apply-btn" class="btn btn-primary">
         <span class="btn-icon">✅</span>
-        Apply Groups
+        Apply Proposals
       </button>
     </footer>
 

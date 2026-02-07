@@ -6,6 +6,7 @@ let categoryColors = {};
 // DOM Elements
 const elements = {
   autoGroupNewTabs: document.getElementById('auto-group-new-tabs'),
+  autoCollapse: document.getElementById('auto-collapse'),
   autoGroupDelay: document.getElementById('auto-group-delay'),
   domainInput: document.getElementById('domain-input'),
   domainCategorySelect: document.getElementById('domain-category-select'),
@@ -78,6 +79,7 @@ async function loadSettings() {
     chrome.storage.local.get(
       [
         'autoGroupNewTabs',
+        'autoCollapse',
         'autoGroupDelay',
         'customDomainRules',
         'customKeywordRules',
@@ -85,6 +87,7 @@ async function loadSettings() {
       ],
       (result) => {
         elements.autoGroupNewTabs.checked = result.autoGroupNewTabs || false;
+        elements.autoCollapse.checked = result.autoCollapse !== undefined ? result.autoCollapse : true;
         elements.autoGroupDelay.value = result.autoGroupDelay || 5000;
         customDomainRules = result.customDomainRules || {};
         customKeywordRules = result.customKeywordRules || {};
@@ -101,6 +104,7 @@ async function loadSettings() {
 async function saveSettings() {
   const settings = {
     autoGroupNewTabs: elements.autoGroupNewTabs.checked,
+    autoCollapse: elements.autoCollapse.checked,
     autoGroupDelay: parseInt(elements.autoGroupDelay.value) || 5000,
     customDomainRules,
     customKeywordRules,
@@ -120,6 +124,10 @@ async function saveSettings() {
 function setupEventListeners() {
   // Auto-group settings
   elements.autoGroupNewTabs.addEventListener('change', () => {
+    saveSettings();
+  });
+
+  elements.autoCollapse.addEventListener('change', () => {
     saveSettings();
   });
 

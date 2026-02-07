@@ -47,6 +47,20 @@ chrome.runtime.onStartup.addListener(async () => {
   }
 });
 
+// Listen for storage changes to handle setting updates
+chrome.storage.onChanged.addListener((changes, areaName) => {
+  if (areaName === 'local' && changes.autoCollapse) {
+    if (changes.autoCollapse.newValue) {
+      // If enabled, trigger a collapse of current window's inactive groups
+      chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
+        if (tabs[0]) {
+          handleGroupAutoCollapse(tabs[0]);
+        }
+      });
+    }
+  }
+});
+
 // Listen for messages from popup
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   if (request.action === 'createGroups') {
@@ -66,6 +80,13 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   if (request.action === 'updateGroup') {
     updateTabGroup(request.groupId, request.updates)
       .then(() => sendResponse({ success: true }))
+      .catch((error) => sendResponse({ success: false, error: error.message }));
+    return true;
+  }
+
+  if (request.action === 'mergeGroups') {
+    mergeTabGroups(request.sourceGroupId, request.targetGroupId)
+      .then((result) => sendResponse({ success: true, data: result }))
       .catch((error) => sendResponse({ success: false, error: error.message }));
     return true;
   }
@@ -179,6 +200,16 @@ async function createTabGroups(groups) {
     }
   }
 
+  // After creating all groups, handle auto-collapse for the active tab
+  try {
+    const [activeTab] = await chrome.tabs.query({ active: true, lastFocusedWindow: true });
+    if (activeTab) {
+      handleGroupAutoCollapse(activeTab);
+    }
+  } catch (error) {
+    // Ignore error
+  }
+
   return groupIds;
 }
 
@@ -210,6 +241,54 @@ async function updateTabGroup(groupId, updates) {
       }
     });
   });
+}
+
+/**
+ * Merge two tab groups
+ * Combines all tabs from source group into target group
+ */
+async function mergeTabGroups(sourceGroupId, targetGroupId) {
+  try {
+    // Get all tabs from both groups
+    const sourceTabs = await new Promise((resolve) => {
+      chrome.tabs.query({ groupId: sourceGroupId }, resolve);
+    });
+
+    const targetTabs = await new Promise((resolve) => {
+      chrome.tabs.query({ groupId: targetGroupId }, resolve);
+    });
+
+    if (sourceTabs.length === 0) {
+      return { message: 'Source group has no tabs' };
+    }
+
+    // Get target group info
+    const targetGroup = await new Promise((resolve) => {
+      chrome.tabGroups.get(targetGroupId, resolve);
+    });
+
+    // Move all tabs from source group to target group
+    const sourceTabIds = sourceTabs.map(tab => tab.id);
+
+    await new Promise((resolve, reject) => {
+      chrome.tabs.group({ tabIds: sourceTabIds, groupId: targetGroupId }, () => {
+        if (chrome.runtime.lastError) {
+          reject(chrome.runtime.lastError);
+        } else {
+          resolve();
+        }
+      });
+    });
+
+    return {
+      message: 'Groups merged successfully',
+      targetGroupName: targetGroup.title || 'Untitled Group',
+      tabsMerged: sourceTabIds.length
+    };
+  } catch (error) {
+    console.error('Error merging groups:', error);
+    throw error;
+  }
 }
 
 // Optional: Auto-group new tabs (if enabled)
@@ -275,6 +354,72 @@ chrome.tabs.onRemoved.addListener((tabId) => {
     autoGroupTimeouts.delete(tabId);
   }
 });
+
+// Listener for tab activation to handle auto-collapse
+chrome.tabs.onActivated.addListener(async (activeInfo) => {
+  try {
+    const tab = await chrome.tabs.get(activeInfo.tabId);
+    handleGroupAutoCollapse(tab);
+  } catch (error) {
+    // Ignore error if tab is not found
+  }
+});
+
+// Listener for window focus changes to handle auto-collapse
+chrome.windows.onFocusChanged.addListener(async (windowId) => {
+  if (windowId === chrome.windows.WINDOW_ID_NONE) return;
+  
+  try {
+    const [tab] = await chrome.tabs.query({ active: true, windowId: windowId });
+    if (tab) {
+      handleGroupAutoCollapse(tab);
+    }
+  } catch (error) {
+    // Ignore error
+  }
+});
+
+/**
+ * Collapse groups that don't contain the active tab
+ */
+async function handleGroupAutoCollapse(activeTab) {
+  if (!activeTab) return;
+
+  const result = await new Promise((resolve) => {
+    chrome.storage.local.get(['autoCollapse'], resolve);
+  });
+
+  if (!result.autoCollapse) return;
+
+  const activeGroupId = activeTab.groupId;
+
+  try {
+    // Get all groups in the current window
+    const groups = await new Promise((resolve) => {
+      chrome.tabGroups.query({ windowId: activeTab.windowId }, resolve);
+    });
+
+    for (const group of groups) {
+      // If active tab is in a group, only that group should be expanded.
+      // If active tab is NOT in a group, ALL groups should be collapsed.
+      const shouldBeCollapsed = group.id !== activeGroupId;
+
+      // Only update if the state needs to change to avoid unnecessary API calls
+      if (group.id !== -1 && group.collapsed !== shouldBeCollapsed) {
+        await new Promise((resolve) => {
+          chrome.tabGroups.update(group.id, { collapsed: shouldBeCollapsed }, () => {
+            if (chrome.runtime.lastError) {
+              // Ignore error (group might be gone)
+            }
+            resolve();
+          });
+        });
+      }
+    }
+  } catch (error) {
+    console.error('[AutoCollapse] Error:', error);
+  }
+}
 
 /**
  * Auto-group a single tab
@@ -344,6 +489,16 @@ async function autoGroupTab(tab) {
           }
         });
       });
+    }
+
+    // After grouping, handle auto-collapse if this is the active tab
+    try {
+      const currentTab = await chrome.tabs.get(tab.id);
+      if (currentTab.active) {
+        handleGroupAutoCollapse(currentTab);
+      }
+    } catch (e) {
+      // Tab might be gone
     }
   } catch (error) {
     console.error('Error auto-grouping tab:', error);
