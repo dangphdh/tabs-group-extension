@@ -17,6 +17,9 @@ const elements = {
   addKeywordRuleBtn: document.getElementById('add-keyword-rule'),
   keywordRulesList: document.getElementById('keyword-rules-list'),
   categoryColorsList: document.getElementById('category-colors-list'),
+  newCategoryInput: document.getElementById('new-category-input'),
+  newCategoryColorSelect: document.getElementById('new-category-color-select'),
+  addCategoryBtn: document.getElementById('add-category-btn'),
   exportSettingsBtn: document.getElementById('export-settings'),
   importSettingsInput: document.getElementById('import-settings'),
   resetSettingsBtn: document.getElementById('reset-settings'),
@@ -69,6 +72,22 @@ async function initialize() {
   renderDomainRules();
   renderKeywordRules();
   renderCategoryColors();
+  updateCategorySelects();
+}
+
+/**
+ * Update category dropdowns with current categories
+ */
+function updateCategorySelects() {
+  const categories = Object.keys(categoryColors).sort();
+  
+  const options = `
+    <option value="">Select category...</option>
+    ${categories.map(cat => `<option value="${cat}">${cat}</option>`).join('')}
+  `;
+
+  elements.domainCategorySelect.innerHTML = options;
+  elements.keywordCategorySelect.innerHTML = options;
 }
 
 /**
@@ -151,6 +170,12 @@ function setupEventListeners() {
     if (e.key === 'Enter') addKeywordRule();
   });
 
+  // Add new category
+  elements.addCategoryBtn.addEventListener('click', addNewCategory);
+  elements.newCategoryInput.addEventListener('keypress', (e) => {
+    if (e.key === 'Enter') addNewCategory();
+  });
+
   // Import/Export
   elements.exportSettingsBtn.addEventListener('click', exportSettings);
   elements.importSettingsInput.addEventListener('change', importSettings);
@@ -189,6 +214,15 @@ function setupEventListeners() {
       const category = target.dataset.category;
       const color = target.value;
       if (category && color) updateCategoryColor(category, color);
+    }
+  });
+
+  // Event delegation for deleting categories
+  elements.categoryColorsList.addEventListener('click', (e) => {
+    const btn = e.target.closest('.delete-category-btn');
+    if (btn) {
+      const category = btn.dataset.category;
+      if (category) deleteCategory(category);
     }
   });
 
@@ -350,9 +384,11 @@ async function deleteKeywordRule(category, keyword) {
  * Render keyword rules list
  */
 function renderKeywordRules() {
-  const categories = Object.keys(customKeywordRules).filter(
-    cat => customKeywordRules[cat].keywords && customKeywordRules[cat].keywords.length > 0
-  );
+  const categories = Object.keys(customKeywordRules).filter(cat => {
+    const data = customKeywordRules[cat];
+    if (Array.isArray(data)) return data.length > 0;
+    return data && Array.isArray(data.keywords) && data.keywords.length > 0;
+  });
 
   if (categories.length === 0) {
     elements.keywordRulesList.innerHTML = `
@@ -369,7 +405,15 @@ function renderKeywordRules() {
     const data = customKeywordRules[category];
     const categoryClass = getCategoryClass(category);
 
-    data.keywords.forEach(keyword => {
+    // Handle both old format (array) and new format (object with keywords property)
+    let keywordList = [];
+    if (Array.isArray(data)) {
+      keywordList = data;
+    } else if (data && Array.isArray(data.keywords)) {
+      keywordList = data.keywords;
+    }
+
+    keywordList.forEach(keyword => {
       html += `
         <div class="rule-item">
           <span class="rule-keyword">${keyword}</span>
@@ -388,23 +432,93 @@ function renderKeywordRules() {
  */
 function renderCategoryColors() {
   const colorOptions = ['grey', 'blue', 'red', 'yellow', 'green', 'pink', 'purple', 'cyan', 'orange'];
+  const allCategories = Object.keys(categoryColors).sort();
 
-  elements.categoryColorsList.innerHTML = Object.entries(defaultCategoryColors).map(([category, defaultColor]) => {
-    const currentColor = categoryColors[category] || defaultColor;
+  elements.categoryColorsList.innerHTML = allCategories.map(category => {
+    const currentColor = categoryColors[category];
+    const isDefault = defaultCategoryColors.hasOwnProperty(category);
 
     return `
       <div class="category-color-item">
-        <span class="category-name">${category}</span>
-        <select class="category-color-select" data-category="${category}">
-          ${colorOptions.map(color => `
-            <option value="${color}" ${currentColor === color ? 'selected' : ''}>
-              ${color.charAt(0).toUpperCase() + color.slice(1)}
-            </option>
-          `).join('')}
-        </select>
+        <span class="category-name">${category} ${isDefault ? '<small>(Default)</small>' : ''}</span>
+        <div class="category-actions">
+          <select class="category-color-select" data-category="${category}">
+            ${colorOptions.map(color => `
+              <option value="${color}" ${currentColor === color ? 'selected' : ''}>
+                ${color.charAt(0).toUpperCase() + color.slice(1)}
+              </option>
+            `).join('')}
+          </select>
+          ${!isDefault ? `<button class="delete-category-btn" data-category="${category}" title="Delete Category">×</button>` : ''}
+        </div>
       </div>
     `;
   }).join('');
+}
+
+/**
+ * Delete a custom category
+ */
+async function deleteCategory(category) {
+  // Check if it's a default category
+  if (defaultCategoryColors.hasOwnProperty(category)) {
+    showToast('Cannot delete default categories', 'error');
+    return;
+  }
+
+  // Check if any rules use this category
+  const hasDomainRules = Object.values(customDomainRules).some(rule => rule.category === category);
+  const hasKeywordRules = customKeywordRules.hasOwnProperty(category);
+
+  if (hasDomainRules || hasKeywordRules) {
+    if (!confirm(`The category "${category}" is being used by some rules. Deleting it may cause issues. Continue?`)) {
+      return;
+    }
+  } else {
+    if (!confirm(`Are you sure you want to delete the category "${category}"?`)) {
+      return;
+    }
+  }
+
+  // Delete the category
+  delete categoryColors[category];
+
+  // Save and update UI
+  await saveSettings();
+  renderCategoryColors();
+  updateCategorySelects();
+  
+  showToast('Category deleted', 'success');
+}
+
+/**
+ * Add a new custom category
+ */
+async function addNewCategory() {
+  const name = elements.newCategoryInput.value.trim();
+  const color = elements.newCategoryColorSelect.value;
+
+  if (!name) {
+    showToast('Please enter a category name', 'error');
+    return;
+  }
+
+  if (categoryColors[name]) {
+    showToast('Category already exists', 'error');
+    return;
+  }
+
+  // Add the new category
+  categoryColors[name] = color;
+
+  // Save and update UI
+  await saveSettings();
+  renderCategoryColors();
+  updateCategorySelects();
+
+  // Clear input
+  elements.newCategoryInput.value = '';
+  showToast('Category added successfully', 'success');
 }
 
 /**

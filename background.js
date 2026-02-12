@@ -551,7 +551,15 @@ async function applyCustomRulesToState() {
   // Apply custom keyword rules
   if (result.customKeywordRules) {
     for (const [category, keywords] of Object.entries(result.customKeywordRules)) {
-      keywords.forEach(keyword => {
+      // Handle both old format (array) and new format (object with keywords property)
+      let keywordList = [];
+      if (Array.isArray(keywords)) {
+        keywordList = keywords;
+      } else if (keywords && Array.isArray(keywords.keywords)) {
+        keywordList = keywords.keywords;
+      }
+
+      keywordList.forEach(keyword => {
         if (typeof addKeywordRule === 'function') {
           addKeywordRule(category, keyword);
         }

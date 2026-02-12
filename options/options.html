@@ -143,17 +143,7 @@
           <input type="text" id="domain-input" placeholder="Enter domain (e.g., example.com)">
           <select id="domain-category-select" title="Select a category for the domain">
             <option value="">Select category...</option>
-            <option value="Development">Development</option>
-            <option value="Entertainment">Entertainment</option>
-            <option value="Social">Social</option>
-            <option value="News">News</option>
-            <option value="Finance">Finance</option>
-            <option value="Sports">Sports</option>
-            <option value="Shopping">Shopping</option>
-            <option value="Learning">Learning</option>
-            <option value="Communication">Communication (Email)</option>
-            <option value="Work">Work (Office)</option>
-            <option value="Other">Other</option>
+            <!-- Dynamically populated -->
           </select>
           <button id="add-domain-rule" class="btn btn-primary">Add Rule</button>
         </div>
@@ -173,17 +163,7 @@
         <div class="rule-form">
           <select id="keyword-category-select" title="Select a category for the keyword">
             <option value="">Select category...</option>
-            <option value="Development">Development</option>
-            <option value="Entertainment">Entertainment</option>
-            <option value="Social">Social</option>
-            <option value="News">News</option>
-            <option value="Finance">Finance</option>
-            <option value="Sports">Sports</option>
-            <option value="Shopping">Shopping</option>
-            <option value="Learning">Learning</option>
-            <option value="Communication">Communication (Email)</option>
-            <option value="Work">Work (Office)</option>
-            <option value="Other">Other</option>
+            <!-- Dynamically populated -->
           </select>
           <input type="text" id="keyword-input" placeholder="Enter keyword (e.g., tutorial)">
           <button id="add-keyword-rule" class="btn btn-primary">Add Keyword</button>
@@ -196,13 +176,29 @@
 
       <!-- Section: Category Management -->
       <section class="section">
-        <h2>Category Colors</h2>
+        <h2>Category Management</h2>
         <p class="section-description">
-          Customize the color for each category.
+          Add new categories or customize colors for existing ones.
         </p>
 
+        <div class="rule-form">
+          <input type="text" id="new-category-input" placeholder="Enter new category name">
+          <select id="new-category-color-select" title="Select a color for the new category">
+            <option value="grey">Grey</option>
+            <option value="blue">Blue</option>
+            <option value="red">Red</option>
+            <option value="yellow">Yellow</option>
+            <option value="green">Green</option>
+            <option value="pink">Pink</option>
+            <option value="purple">Purple</option>
+            <option value="cyan">Cyan</option>
+            <option value="orange">Orange</option>
+          </select>
+          <button id="add-category-btn" class="btn btn-primary">Add Category</button>
+        </div>
+
         <div id="category-colors-list" class="category-colors-list">
-          <!-- Category colors will be rendered here -->
+          <!-- Category list will be rendered here -->
         </div>
       </section>
 
