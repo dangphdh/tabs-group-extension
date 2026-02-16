@@ -240,6 +240,34 @@ body {
   cursor: pointer;
 }
 
+.category-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.delete-category-btn {
+  background: none;
+  border: none;
+  color: var(--danger-color);
+  cursor: pointer;
+  padding: 4px 8px;
+  border-radius: 4px;
+  font-size: 20px;
+  line-height: 1;
+  transition: background 0.2s ease;
+}
+
+.delete-category-btn:hover {
+  background: rgba(234, 67, 53, 0.1);
+}
+
+.category-name small {
+  color: var(--text-secondary);
+  font-weight: normal;
+  font-style: italic;
+}
+
 /* Learning Stats */
 .learning-stats {
   display: grid;
