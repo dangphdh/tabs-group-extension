@@ -53,6 +53,7 @@ const elements = {
   editRulesBtn: document.getElementById('edit-rules-btn'),
   applyBtn: document.getElementById('apply-btn'),
   ungroupAllBtn: document.getElementById('ungroup-all-btn'),
+  cleanBookmarksBtn: document.getElementById('clean-bookmarks-btn'),
   navPropose: document.getElementById('nav-propose'),
   navManage: document.getElementById('nav-manage'),
   groupingStrategy: document.getElementById('grouping-strategy'),
@@ -90,6 +91,9 @@ async function initialize() {
 
   // Management actions
   elements.ungroupAllBtn.addEventListener('click', ungroupAll);
+  if (elements.cleanBookmarksBtn) {
+    elements.cleanBookmarksBtn.addEventListener('click', cleanBookmarksBarGroups);
+  }
 
   // Search and filter event listeners
   elements.searchInput.addEventListener('input', handleSearch);
@@ -509,22 +513,43 @@ async function applyGroups() {
 
     const groupIds = {};
 
-    // Create groups for each category
+    // Get existing groups in current window to avoid duplicates
+    const existingGroups = await new Promise((resolve) => {
+      chrome.tabGroups.query({ windowId: chrome.windows.WINDOW_ID_CURRENT }, resolve);
+    });
+
+    // Create or update groups for each category
     for (const [categoryName, group] of Object.entries(currentGroups)) {
       if (group.tabs.length === 0) continue;
 
       const tabIds = group.tabs.map(tab => tab.id);
+      const matchingGroup = existingGroups.find(g => g.title === categoryName);
 
-      // Create the group
-      const groupId = await new Promise((resolve, reject) => {
-        chrome.tabs.group({ tabIds }, (createdGroupId) => {
-          if (chrome.runtime.lastError) {
-            reject(chrome.runtime.lastError);
-          } else {
-            resolve(createdGroupId);
-          }
+      let groupId;
+      if (matchingGroup) {
+        groupId = matchingGroup.id;
+        // Group tabs into existing group
+        await new Promise((resolve, reject) => {
+          chrome.tabs.group({ tabIds, groupId }, () => {
+            if (chrome.runtime.lastError) {
+              reject(chrome.runtime.lastError);
+            } else {
+              resolve();
+            }
+          });
         });
-      });
+      } else {
+        // Create a new group
+        groupId = await new Promise((resolve, reject) => {
+          chrome.tabs.group({ tabIds }, (createdGroupId) => {
+            if (chrome.runtime.lastError) {
+              reject(chrome.runtime.lastError);
+            } else {
+              resolve(createdGroupId);
+            }
+          });
+        });
+      }
 
       // Update group title and color
       await new Promise((resolve, reject) => {
@@ -545,7 +570,7 @@ async function applyGroups() {
       groupIds[categoryName] = groupId;
     }
 
-    showStatus(`Successfully created ${Object.keys(groupIds).length} group(s)!`, 'success');
+    showStatus(`Successfully created/updated ${Object.keys(groupIds).length} group(s)!`, 'success');
 
     // Close popup after short delay
     setTimeout(() => {
@@ -1302,6 +1327,93 @@ function updateCategoryFilter(categories) {
   } else {
     elements.categoryFilter.value = 'all';
     selectedCategory = 'all';
+  }
+}
+
+/**
+ * Clean up tab groups from the bookmarks bar
+ */
+async function cleanBookmarksBarGroups() {
+  if (!confirm('Are you sure you want to remove grouped tab bookmarks from your bookmarks bar? This will only remove bookmarks likely created by tab grouping.')) {
+    return;
+  }
+
+  showStatus('Cleaning bookmarks...', 'info');
+  let removedCount = 0;
+
+  try {
+    // 1. Try to use chrome.tabGroups.savedGroups if available (Chrome 122+)
+    if (chrome.tabGroups && chrome.tabGroups.savedGroups) {
+      try {
+        const savedGroups = await new Promise((resolve) => {
+          chrome.tabGroups.savedGroups.getAll(resolve);
+        });
+        
+        console.log('[Clean] Found saved groups:', savedGroups);
+
+        if (savedGroups && savedGroups.length > 0) {
+          for (const group of savedGroups) {
+            // Chrome API uses savedGuid, but we'll check for both id and savedGuid
+            const idToRemove = group.savedGuid || group.id;
+            if (idToRemove) {
+              await new Promise((resolve) => {
+                chrome.tabGroups.savedGroups.remove(idToRemove, resolve);
+              });
+              removedCount++;
+            }
+          }
+        }
+      } catch (e) {
+        console.warn('SavedTabGroups API check failed:', e);
+      }
+    }
+
+    // 2. Search bookmarks tree for any folders matching category names
+    if (!chrome.bookmarks) {
+      throw new Error('Bookmarks permission not granted. Please reload the extension in chrome://extensions');
+    }
+
+    const tree = await new Promise((resolve) => {
+      chrome.bookmarks.getTree(resolve);
+    });
+
+    if (tree && tree.length > 0) {
+      // Common categories + custom ones
+      const defaultCategories = [
+        'Development', 'Entertainment', 'Social', 'News', 'Finance', 
+        'Sports', 'Shopping', 'Learning', 'Communication', 'Work', 'Other',
+        'Saved Tab Groups' // Also search for the internal folder name
+      ];
+      
+      const storage = await new Promise(r => chrome.storage.local.get(['categoryColors'], r));
+      const customCategories = Object.keys(storage.categoryColors || {});
+      const allCategories = [...new Set([...defaultCategories, ...customCategories])].map(c => c.toLowerCase());
+
+      // Helper to recursively search and delete
+      const processNodes = async (nodes) => {
+        for (const node of nodes) {
+          if (node.children) {
+            // It's a folder
+            if (allCategories.includes(node.title.toLowerCase())) {
+              await new Promise((resolve) => {
+                chrome.bookmarks.removeTree(node.id, resolve);
+              });
+              removedCount++;
+            } else {
+              // Recurse into subfolders
+              await processNodes(node.children);
+            }
+          }
+        }
+      };
+
+      await processNodes(tree);
+    }
+
+    showStatus(`Cleaned ${removedCount} items from bookmarks bar!`, 'success');
+  } catch (error) {
+    console.error('Error cleaning bookmarks:', error);
+    showStatus('Error cleaning bookmarks: ' + error.message, 'error');
   }
 }
 

@@ -151,10 +151,58 @@ async function learnFromGroupRename(group, newTitle) {
       chrome.storage.local.set({ [STORAGE_KEYS.LEARNED_DOMAIN_RULES]: learnedRules }, resolve);
     });
 
+    // Cleanup if we have too many rules
+    await cleanupOldRules();
+
     // Update stats
     await updateLearningStats('renamesLearned');
   } catch (error) {
     console.error('[Learning] Error learning from group rename:', error);
+  }
+}
+
+/**
+ * Cleanup old rules if we exceed the limit
+ */
+async function cleanupOldRules() {
+  try {
+    const result = await new Promise((resolve) => {
+      chrome.storage.local.get([STORAGE_KEYS.LEARNED_DOMAIN_RULES, STORAGE_KEYS.USER_PREFERENCES], resolve);
+    });
+
+    const learnedRules = result.learnedDomainRules || {};
+    const prefs = result.userPreferences || DEFAULT_SETTINGS;
+    const maxRules = prefs.maxLearnedRules || DEFAULT_SETTINGS.maxLearnedRules;
+
+    const domains = Object.keys(learnedRules);
+    if (domains.length <= maxRules) return;
+
+    // Sort by lastSeen (ascending) and confidence (ascending)
+    // We want to keep the most recent and most confident rules
+    domains.sort((a, b) => {
+      const ruleA = learnedRules[a];
+      const ruleB = learnedRules[b];
+      
+      // Primary: Confidence
+      if (ruleA.confidence !== ruleB.confidence) {
+        return ruleA.confidence - ruleB.confidence;
+      }
+      
+      // Secondary: Last seen
+      return ruleA.lastSeen - ruleB.lastSeen;
+    });
+
+    // Remove oldest/least confident rules
+    const rulesToRemove = domains.length - maxRules;
+    for (let i = 0; i < rulesToRemove; i++) {
+      delete learnedRules[domains[i]];
+    }
+
+    await new Promise((resolve) => {
+      chrome.storage.local.set({ [STORAGE_KEYS.LEARNED_DOMAIN_RULES]: learnedRules }, resolve);
+    });
+  } catch (error) {
+    console.error('[Learning] Error cleaning up old rules:', error);
   }
 }
 
@@ -204,6 +252,9 @@ async function learnFromTabMove(tab, moveInfo) {
         await new Promise((resolve) => {
           chrome.storage.local.set({ [STORAGE_KEYS.LEARNED_DOMAIN_RULES]: learnedRules }, resolve);
         });
+
+        // Cleanup if we have too many rules
+        await cleanupOldRules();
 
         // Update stats
         await updateLearningStats('movesLearned');

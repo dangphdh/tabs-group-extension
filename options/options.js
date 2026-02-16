@@ -32,7 +32,8 @@ const elements = {
   minConfidence: document.getElementById('min-confidence'),
   learnedRulesList: document.getElementById('learned-rules-list'),
   refreshLearnedBtn: document.getElementById('refresh-learned'),
-  resetLearningBtn: document.getElementById('reset-learning')
+  resetLearningBtn: document.getElementById('reset-learning'),
+  cleanBookmarksBtn: document.getElementById('clean-bookmarks-btn')
 };
 
 // Default category colors
@@ -200,6 +201,9 @@ function setupEventListeners() {
   elements.minConfidence.addEventListener('change', saveLearningSettings);
   elements.refreshLearnedBtn.addEventListener('click', refreshLearnedData);
   elements.resetLearningBtn.addEventListener('click', resetAllLearning);
+  if (elements.cleanBookmarksBtn) {
+    elements.cleanBookmarksBtn.addEventListener('click', cleanBookmarksBarGroups);
+  }
 }
 
 /**
@@ -699,6 +703,88 @@ async function resetAllLearning() {
   } catch (error) {
     console.error('Failed to reset learning:', error);
     showToast('Failed to reset learning', 'error');
+  }
+}
+
+/**
+ * Clean up tab groups from the bookmarks bar
+ */
+async function cleanBookmarksBarGroups() {
+  if (!confirm('Are you sure you want to remove grouped tab bookmarks from your bookmarks bar? This will only remove bookmarks likely created by tab grouping.')) {
+    return;
+  }
+
+  showToast('Cleaning bookmarks...', 'info');
+  let removedCount = 0;
+
+  try {
+    // 1. Try to use chrome.tabGroups.savedGroups if available (Chrome 122+)
+    if (chrome.tabGroups && chrome.tabGroups.savedGroups) {
+      try {
+        const savedGroups = await new Promise((resolve) => {
+          chrome.tabGroups.savedGroups.getAll(resolve);
+        });
+        
+        if (savedGroups && savedGroups.length > 0) {
+          for (const group of savedGroups) {
+            // Chrome API uses savedGuid, but we'll check for both id and savedGuid
+            const idToRemove = group.savedGuid || group.id;
+            if (idToRemove) {
+              await new Promise((resolve) => {
+                chrome.tabGroups.savedGroups.remove(idToRemove, resolve);
+              });
+              removedCount++;
+            }
+          }
+        }
+      } catch (e) {
+        console.warn('SavedTabGroups API check failed:', e);
+      }
+    }
+
+    // 2. Search bookmarks tree for any folders matching category names
+    if (!chrome.bookmarks) {
+      throw new Error('Bookmarks permission not granted. Please reload the extension in chrome://extensions');
+    }
+
+    const tree = await new Promise((resolve) => {
+      chrome.bookmarks.getTree(resolve);
+    });
+
+    if (tree && tree.length > 0) {
+      const defaultCategories = [
+        'Development', 'Entertainment', 'Social', 'News', 'Finance', 
+        'Sports', 'Shopping', 'Learning', 'Communication', 'Work', 'Other',
+        'Saved Tab Groups'
+      ];
+      
+      const allCategories = [...new Set([...defaultCategories, ...Object.keys(categoryColors)])].map(c => c.toLowerCase());
+
+      // Helper to recursively search and delete
+      const processNodes = async (nodes) => {
+        for (const node of nodes) {
+          if (node.children) {
+            // It's a folder
+            if (allCategories.includes(node.title.toLowerCase())) {
+              await new Promise((resolve) => {
+                chrome.bookmarks.removeTree(node.id, resolve);
+              });
+              removedCount++;
+            } else {
+              // Recurse into subfolders
+              await processNodes(node.children);
+            }
+          }
+        }
+      };
+
+      await processNodes(tree);
+    }
+
+    showToast(`Cleaned ${removedCount} items from bookmarks bar!`, 'success');
+  } catch (error) {
+    console.error('Error cleaning bookmarks:', error);
+    showToast('Error cleaning bookmarks: ' + error.message, 'error');
   }
 }
 

@@ -161,22 +161,46 @@ function validateColor(color, category = 'Unknown') {
 async function createTabGroups(groups) {
   const groupIds = {};
 
+  // Get all existing tab groups to avoid duplicates
+  const existingGroups = await new Promise((resolve) => {
+    chrome.tabGroups.query({}, resolve);
+  });
+
   for (const [categoryName, group] of Object.entries(groups)) {
     if (group.tabs.length === 0) continue;
 
     const tabIds = group.tabs.map(tab => tab.id);
+    const windowId = group.tabs[0].windowId; // Assume all tabs in group are same window
+
+    // Find existing group with same title in the same window
+    const matchingGroup = existingGroups.find(g => g.title === categoryName && g.windowId === windowId);
 
     try {
-      // Create the group
-      const groupId = await new Promise((resolve, reject) => {
-        chrome.tabs.group({ tabIds }, (createdGroupId) => {
-          if (chrome.runtime.lastError) {
-            reject(chrome.runtime.lastError);
-          } else {
-            resolve(createdGroupId);
-          }
+      let groupId;
+      if (matchingGroup) {
+        groupId = matchingGroup.id;
+        // Group tabs into existing group
+        await new Promise((resolve, reject) => {
+          chrome.tabs.group({ tabIds, groupId }, () => {
+            if (chrome.runtime.lastError) {
+              reject(chrome.runtime.lastError);
+            } else {
+              resolve();
+            }
+          });
         });
-      });
+      } else {
+        // Create the group
+        groupId = await new Promise((resolve, reject) => {
+          chrome.tabs.group({ tabIds }, (createdGroupId) => {
+            if (chrome.runtime.lastError) {
+              reject(chrome.runtime.lastError);
+            } else {
+              resolve(createdGroupId);
+            }
+          });
+        });
+      }
 
       // Update group title and color
       await new Promise((resolve, reject) => {
@@ -196,7 +220,7 @@ async function createTabGroups(groups) {
 
       groupIds[categoryName] = groupId;
     } catch (error) {
-      console.error(`Error creating group "${categoryName}":`, error);
+      console.error(`Error creating/updating group "${categoryName}":`, error);
     }
   }
 
