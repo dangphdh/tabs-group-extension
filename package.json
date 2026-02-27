@@ -4,7 +4,10 @@
   "description": "Chrome extension to automatically group browser tabs by domain and topic",
   "scripts": {
     "build:icons": "echo 'Convert icon.svg to PNG files using an online tool or ImageMagick'",
-    "test": "echo 'Load extension in Chrome at chrome://extensions/ to test'"
+    "test": "echo 'Load extension in Chrome at chrome://extensions/ to test'",
+    "test:playwright": "playwright test",
+    "test:playwright:debug": "playwright test --debug",
+    "test:playwright:headed": "playwright test --headed"
   },
   "keywords": [
     "chrome-extension",
@@ -13,5 +16,8 @@
     "browser-extension"
   ],
   "author": "",
-  "license": "MIT"
+  "license": "MIT",
+  "devDependencies": {
+    "@playwright/test": "^1.40.0"
+  }
 }

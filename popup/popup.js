@@ -37,6 +37,156 @@ function validateColor(color, category = 'Unknown') {
   return result;
 }
 
+/**
+ * Update group title and color, and sync to saved group if it exists
+ */
+async function syncTabGroupMetadata(groupId, metadata) {
+  return new Promise((resolve) => {
+    // Ensure title is not empty
+    const safeMetadata = {
+      ...metadata,
+      title: ensureValidTitle(metadata.title)
+    };
+
+    // 1. Update the live group with explicit collapsed state to force UI refresh
+    const updateData = {
+      ...safeMetadata,
+      collapsed: metadata.collapsed !== undefined ? metadata.collapsed : false
+    };
+
+    chrome.tabGroups.update(groupId, updateData, async () => {
+      const error = chrome.runtime.lastError;
+      if (error) {
+        console.warn('[Sync] Could not update live group:', error);
+        resolve(false);
+        return;
+      }
+
+      // Small delay to ensure Chrome UI has updated
+      await new Promise(r => setTimeout(r, 50));
+
+      // 2. Try to sync with saved groups (Chrome 122+)
+      if (chrome.tabGroups && chrome.tabGroups.savedGroups) {
+        try {
+          // Wait a bit longer for saved group to be created
+          await new Promise(r => setTimeout(r, 100));
+
+          // Get the current group info for better matching
+          const currentGroup = await new Promise((res) => {
+            chrome.tabGroups.get(groupId, res);
+          });
+
+          // Try multiple times to find the saved group (it might be created asynchronously)
+          let savedGroup = null;
+          let retries = 3;
+
+          for (let attempt = 0; attempt < retries && !savedGroup; attempt++) {
+            const allSaved = await new Promise((res) => {
+              chrome.tabGroups.savedGroups.getAll(res);
+            });
+
+            console.log(`[Sync] Attempt ${attempt + 1}/${retries}: Searching for saved group. Total saved groups: ${allSaved.length}`);
+
+            // Strategy 1: Match by localGroupId (most reliable)
+            savedGroup = allSaved.find(sg =>
+              sg.localGroupId === groupId ||
+              sg.groupId === groupId
+            );
+
+            if (savedGroup) {
+              console.log(`[Sync] ✓ Matched by localGroupId: ${savedGroup.savedGuid || savedGroup.id}`);
+              break;
+            }
+
+            // Strategy 2: Match by title (if current group has the title we set)
+            if (currentGroup.title === safeMetadata.title) {
+              savedGroup = allSaved.find(sg =>
+                sg.title === currentGroup.title &&
+                sg.color === currentGroup.color
+              );
+              if (savedGroup) {
+                console.log(`[Sync] ✓ Matched by title & color: ${savedGroup.savedGuid || savedGroup.id}`);
+                break;
+              }
+            }
+
+            // Strategy 3: Match by color only (for recently created unnamed groups)
+            if (!savedGroup && currentGroup.color) {
+              // Find unnamed groups with matching color
+              const unnamedGroups = allSaved.filter(sg =>
+                !sg.title ||
+                sg.title.trim() === '' ||
+                sg.title === 'Untitled Group'
+              );
+
+              // If there's exactly one unnamed group with matching color, use it
+              if (unnamedGroups.length === 1) {
+                savedGroup = unnamedGroups.find(sg => sg.color === currentGroup.color);
+                if (savedGroup) {
+                  console.log(`[Sync] ✓ Matched unnamed group by color: ${savedGroup.savedGuid || savedGroup.id}`);
+                  break;
+                }
+              }
+
+              // If there are multiple unnamed groups, find the most recent one
+              if (unnamedGroups.length > 1 && !savedGroup) {
+                savedGroup = unnamedGroups.find(sg => sg.color === currentGroup.color);
+                if (savedGroup) {
+                  console.log(`[Sync] ✓ Matched most recent unnamed group by color: ${savedGroup.savedGuid || savedGroup.id}`);
+                  break;
+                }
+              }
+            }
+
+            // If not found and this isn't the last attempt, wait and retry
+            if (!savedGroup && attempt < retries - 1) {
+              console.log(`[Sync] Saved group not found, retrying in 300ms...`);
+              await new Promise(r => setTimeout(r, 300));
+            }
+          }
+
+          // Update the saved group if found
+          if (savedGroup) {
+            const savedId = savedGroup.savedGuid || savedGroup.id;
+            if (savedId) {
+              await new Promise((res, rej) => {
+                chrome.tabGroups.savedGroups.update(savedId, {
+                  title: safeMetadata.title,
+                  color: safeMetadata.color
+                }, () => {
+                  if (chrome.runtime.lastError) {
+                    rej(chrome.runtime.lastError);
+                  } else {
+                    res();
+                  }
+                });
+              });
+              console.log(`[Sync] ✓✓✓ SUCCESS: Updated saved group "${savedGroup.title || '(unnamed)'}" => "${safeMetadata.title}"`);
+            }
+          } else {
+            console.warn(`[Sync] ⚠️ Could not find saved group for "${safeMetadata.title}" (live group ID: ${groupId})`);
+            console.warn(`[Sync] The saved group may not have been created yet, or the matching failed.`);
+          }
+        } catch (e) {
+          console.error('[Sync] ✗ ERROR: Saved group sync failed:', e);
+        }
+      }
+
+      resolve(!error);
+    });
+  });
+}
+
+/**
+ * Ensure title is not empty (fallback to "Untitled Group")
+ */
+function ensureValidTitle(title) {
+  if (!title || typeof title !== 'string' || title.trim() === '') {
+    return 'Untitled Group';
+  }
+  return title.trim();
+}
+
 // DOM Elements
 const elements = {
   loading: document.getElementById('loading'),
@@ -53,6 +203,7 @@ const elements = {
   editRulesBtn: document.getElementById('edit-rules-btn'),
   applyBtn: document.getElementById('apply-btn'),
   ungroupAllBtn: document.getElementById('ungroup-all-btn'),
+  fixUnnamedBtn: document.getElementById('fix-unnamed-btn'),
   cleanBookmarksBtn: document.getElementById('clean-bookmarks-btn'),
   navPropose: document.getElementById('nav-propose'),
   navManage: document.getElementById('nav-manage'),
@@ -91,6 +242,9 @@ async function initialize() {
 
   // Management actions
   elements.ungroupAllBtn.addEventListener('click', ungroupAll);
+  if (elements.fixUnnamedBtn) {
+    elements.fixUnnamedBtn.addEventListener('click', fixUnnamedSavedGroups);
+  }
   if (elements.cleanBookmarksBtn) {
     elements.cleanBookmarksBtn.addEventListener('click', cleanBookmarksBarGroups);
   }
@@ -559,12 +713,14 @@ async function applyGroups() {
         });
       }
 
-      // Update group title and color
-      await new Promise((resolve, reject) => {
-        const validatedColor = validateColor(group.color, categoryName);
+      // Update group title and color with UI refresh
+      const title = ensureValidTitle(categoryName); // No "Other" group should be unnamed
+      const validatedColor = validateColor(group.color, title);
 
+      // First: Set title and color
+      await new Promise((resolve, reject) => {
         chrome.tabGroups.update(groupId, {
-          title: categoryName,
+          title,
           color: validatedColor
         }, () => {
           if (chrome.runtime.lastError) {
@@ -574,6 +730,44 @@ async function applyGroups() {
           }
         });
       });
+
+      // Force UI refresh by briefly collapsing then uncollapsing
+      await new Promise(resolve => {
+        chrome.tabGroups.update(groupId, { collapsed: true }, () => resolve());
+      });
+      await new Promise(resolve => setTimeout(resolve, 50));
+      await new Promise(resolve => {
+        chrome.tabGroups.update(groupId, { collapsed: false }, () => resolve());
+      });
+
+      // Wait for Chrome to fully create the saved group before syncing
+      // Increased delay to ensure saved group is ready (Chrome 122+)
+      await new Promise(resolve => setTimeout(resolve, 200));
+
+      // Sync to saved groups with retry mechanism
+      // Only attempt if saved groups API is available
+      const hasSavedGroupsAPI = chrome.tabGroups &&
+                             chrome.tabGroups.savedGroups &&
+                             typeof chrome.tabGroups.savedGroups === 'object';
+
+      if (hasSavedGroupsAPI) {
+        try {
+          await syncTabGroupMetadata(groupId, { title, color: validatedColor });
+        } catch (e) {
+          console.warn('[ApplyGroups] Saved group sync failed:', e);
+
+          // Retry once after a longer delay
+          await new Promise(resolve => setTimeout(resolve, 300));
+          try {
+            await syncTabGroupMetadata(groupId, { title, color: validatedColor });
+          } catch (retryError) {
+            console.warn('[ApplyGroups] Retry also failed:', retryError);
+          }
+        }
+      } else {
+        console.log('[ApplyGroups] ℹ️  Saved Groups API not available - skipping bookmark sync');
+        console.log('[ApplyGroups] ℹ️  Tab groups will work in tab strip only');
+      }
 
       groupIds[categoryName] = groupId;
     }
@@ -853,11 +1047,13 @@ async function ungroupGroup(groupId) {
  */
 async function renameGroup(groupId, currentTitle) {
   const newTitle = prompt('Enter new group name:', currentTitle);
-  if (newTitle === null) return;
+  if (newTitle === null || newTitle.trim() === '') return;
 
   try {
-    await chrome.tabGroups.update(groupId, { title: newTitle });
+    const title = newTitle.trim() || 'Untitled Group';
+    await syncTabGroupMetadata(groupId, { title });
     renderManagementView();
+    showStatus(`Group renamed to "${title}"`, 'success');
   } catch (error) {
     showStatus('Error renaming group', 'error');
   }
@@ -872,8 +1068,9 @@ async function cycleGroupColor(groupId, currentColor) {
   const nextColor = colors[(currentIndex + 1) % colors.length];
 
   try {
-    await chrome.tabGroups.update(groupId, { color: nextColor });
+    await syncTabGroupMetadata(groupId, { color: nextColor });
     renderManagementView();
+    showStatus(`Group color changed to ${nextColor}`, 'success');
   } catch (error) {
     showStatus('Error changing color', 'error');
   }
@@ -1422,6 +1619,43 @@ async function cleanBookmarksBarGroups() {
   } catch (error) {
     console.error('Error cleaning bookmarks:', error);
     showStatus('Error cleaning bookmarks: ' + error.message, 'error');
+  }
+}
+
+/**
+ * Fix all unnamed saved groups
+ */
+async function fixUnnamedSavedGroups() {
+  showStatus('Fixing unnamed groups...', 'info');
+
+  try {
+    const response = await new Promise((resolve, reject) => {
+      chrome.runtime.sendMessage(
+        { action: 'fixUnnamedGroups' },
+        (response) => {
+          if (chrome.runtime.lastError) {
+            reject(chrome.runtime.lastError);
+          } else {
+            resolve(response);
+          }
+        }
+      );
+    });
+
+    if (response && response.success) {
+      const data = response.data;
+      showStatus(data.message || `Fixed ${data.fixed} unnamed group(s)`, 'success');
+      
+      // Refresh the view if we're on the manage tab
+      if (!elements.navPropose.classList.contains('active')) {
+        setTimeout(() => renderManagementView(), 500);
+      }
+    } else {
+      showStatus('Error fixing unnamed groups: ' + (response?.error || 'Unknown error'), 'error');
+    }
+  } catch (error) {
+    console.error('Error fixing unnamed groups:', error);
+    showStatus('Error fixing unnamed groups: ' + error.message, 'error');
   }
 }
 

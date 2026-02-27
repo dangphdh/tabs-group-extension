@@ -133,6 +133,13 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
       .catch((error) => sendResponse({ success: false, error: error.message }));
     return true;
   }
+
+  if (request.action === 'fixUnnamedGroups') {
+    fixUnnamedSavedGroups()
+      .then((result) => sendResponse({ success: true, data: result }))
+      .catch((error) => sendResponse({ success: false, error: error.message }));
+    return true;
+  }
 });
 
 /**
@@ -203,11 +210,13 @@ async function createTabGroups(groups) {
       }
 
       // Update group title and color
-      await new Promise((resolve, reject) => {
-        const validatedColor = validateColor(group.color, categoryName);
+      const validatedColor = validateColor(group.color, categoryName);
+      const title = ensureValidTitle(categoryName);
 
+      // First: Set title and color
+      await new Promise((resolve, reject) => {
         chrome.tabGroups.update(groupId, {
-          title: categoryName,
+          title,
           color: validatedColor
         }, () => {
           if (chrome.runtime.lastError) {
@@ -217,6 +226,36 @@ async function createTabGroups(groups) {
           }
         });
       });
+
+      // Force UI refresh by briefly collapsing then uncollapsing
+      await new Promise(resolve => {
+        chrome.tabGroups.update(groupId, { collapsed: true }, () => resolve());
+      });
+      await new Promise(resolve => setTimeout(resolve, 50));
+      await new Promise(resolve => {
+        chrome.tabGroups.update(groupId, { collapsed: false }, () => resolve());
+      });
+
+      // Wait for Chrome to fully create the saved group before syncing
+      // Increased delay to ensure saved group is ready (Chrome 122+)
+      await new Promise(resolve => setTimeout(resolve, 200));
+
+      // Sync to saved groups with retry mechanism
+      if (chrome.tabGroups && chrome.tabGroups.savedGroups) {
+        try {
+          await syncTabGroupMetadata(groupId, { title, color: validatedColor });
+        } catch (e) {
+          console.warn('[CreateGroups] Saved group sync failed:', e);
+
+          // Retry once after a longer delay
+          await new Promise(resolve => setTimeout(resolve, 300));
+          try {
+            await syncTabGroupMetadata(groupId, { title, color: validatedColor });
+          } catch (retryError) {
+            console.warn('[CreateGroups] Retry also failed:', retryError);
+          }
+        }
+      }
 
       groupIds[categoryName] = groupId;
     } catch (error) {
@@ -238,6 +277,202 @@ async function createTabGroups(groups) {
 }
 
 /**
+ * Ensure title is not empty (fallback to "Untitled Group")
+ */
+function ensureValidTitle(title) {
+  if (!title || typeof title !== 'string' || title.trim() === '') {
+    return 'Untitled Group';
+  }
+  return title.trim();
+}
+
+/**
+ * Update group title and color, and sync to saved group if it exists
+ */
+async function syncTabGroupMetadata(groupId, metadata) {
+  return new Promise((resolve) => {
+    // Ensure title is not empty
+    const safeMetadata = {
+      ...metadata,
+      title: ensureValidTitle(metadata.title)
+    };
+
+    // 1. Update the live group with explicit collapsed state to force UI refresh
+    const updateData = {
+      ...safeMetadata,
+      collapsed: metadata.collapsed !== undefined ? metadata.collapsed : false
+    };
+
+    chrome.tabGroups.update(groupId, updateData, async () => {
+      const error = chrome.runtime.lastError;
+      if (error) {
+        console.warn('[Sync] Could not update live group:', error);
+        resolve(false);
+        return;
+      }
+
+      // Small delay to ensure Chrome UI has updated
+      await new Promise(r => setTimeout(r, 50));
+
+      // 2. Try to sync with saved groups (Chrome 122+)
+      if (chrome.tabGroups && chrome.tabGroups.savedGroups) {
+        try {
+          // Wait a bit longer for saved group to be created
+          await new Promise(r => setTimeout(r, 100));
+
+          // Get the current group info for better matching
+          const currentGroup = await new Promise((res) => {
+            chrome.tabGroups.get(groupId, res);
+          });
+
+          // Try multiple times to find the saved group (it might be created asynchronously)
+          let savedGroup = null;
+          let retries = 3;
+
+          for (let attempt = 0; attempt < retries && !savedGroup; attempt++) {
+            const allSaved = await new Promise((res) => {
+              chrome.tabGroups.savedGroups.getAll(res);
+            });
+
+            console.log(`[Sync] Attempt ${attempt + 1}/${retries}: Searching for saved group. Total saved groups: ${allSaved.length}`);
+
+            // Strategy 1: Match by localGroupId (most reliable)
+            savedGroup = allSaved.find(sg =>
+              sg.localGroupId === groupId ||
+              sg.groupId === groupId
+            );
+
+            if (savedGroup) {
+              console.log(`[Sync] ✓ Matched by localGroupId: ${savedGroup.savedGuid || savedGroup.id}`);
+              break;
+            }
+
+            // Strategy 2: Match by title (if current group has the title we set)
+            if (currentGroup.title === safeMetadata.title) {
+              savedGroup = allSaved.find(sg =>
+                sg.title === currentGroup.title &&
+                sg.color === currentGroup.color
+              );
+              if (savedGroup) {
+                console.log(`[Sync] ✓ Matched by title & color: ${savedGroup.savedGuid || savedGroup.id}`);
+                break;
+              }
+            }
+
+            // Strategy 3: Match by color only (for recently created unnamed groups)
+            if (!savedGroup && currentGroup.color) {
+              // Find unnamed groups with matching color
+              const unnamedGroups = allSaved.filter(sg =>
+                !sg.title ||
+                sg.title.trim() === '' ||
+                sg.title === 'Untitled Group'
+              );
+
+              // If there's exactly one unnamed group with matching color, use it
+              if (unnamedGroups.length === 1) {
+                savedGroup = unnamedGroups.find(sg => sg.color === currentGroup.color);
+                if (savedGroup) {
+                  console.log(`[Sync] ✓ Matched unnamed group by color: ${savedGroup.savedGuid || savedGroup.id}`);
+                  break;
+                }
+              }
+
+              // If there are multiple unnamed groups, find the most recent one
+              if (unnamedGroups.length > 1 && !savedGroup) {
+                // Sort by creation time (most recent first) - use the first matching color
+                savedGroup = unnamedGroups.find(sg => sg.color === currentGroup.color);
+                if (savedGroup) {
+                  console.log(`[Sync] ✓ Matched most recent unnamed group by color: ${savedGroup.savedGuid || savedGroup.id}`);
+                  break;
+                }
+              }
+            }
+
+            // If not found and this isn't the last attempt, wait and retry
+            if (!savedGroup && attempt < retries - 1) {
+              console.log(`[Sync] Saved group not found, retrying in 300ms...`);
+              await new Promise(r => setTimeout(r, 300));
+            }
+          }
+
+          // Update the saved group if found
+          if (savedGroup) {
+            const savedId = savedGroup.savedGuid || savedGroup.id;
+            if (savedId) {
+              await new Promise((res, rej) => {
+                chrome.tabGroups.savedGroups.update(savedId, {
+                  title: safeMetadata.title,
+                  color: safeMetadata.color
+                }, () => {
+                  if (chrome.runtime.lastError) {
+                    rej(chrome.runtime.lastError);
+                  } else {
+                    res();
+                  }
+                });
+              });
+              console.log(`[Sync] ✓✓✓ SUCCESS: Updated saved group "${savedGroup.title || '(unnamed)'}" => "${safeMetadata.title}"`);
+            }
+          } else {
+            console.warn(`[Sync] ⚠️ Could not find saved group for "${safeMetadata.title}" (live group ID: ${groupId})`);
+            console.warn(`[Sync] The saved group may not have been created yet, or the matching failed.`);
+          }
+        } catch (e) {
+          console.error('[Sync] ✗ ERROR: Saved group sync failed:', e);
+        }
+      }
+
+      resolve(!error);
+    });
+  });
+}
+
+/**
+ * Fix all unnamed saved groups by updating them with a default name
+ * Useful for cleaning up groups that were saved without names
+ */
+async function fixUnnamedSavedGroups() {
+  if (!chrome.tabGroups || !chrome.tabGroups.savedGroups) {
+    console.log('[Fix] SavedGroups API not available');
+    return { fixed: 0, message: 'API not available' };
+  }
+
+  try {
+    const allSaved = await new Promise((resolve) => {
+      chrome.tabGroups.savedGroups.getAll(resolve);
+    });
+
+    console.log(`[Fix] Scanning ${allSaved.length} saved groups...`);
+
+    let fixedCount = 0;
+    for (const savedGroup of allSaved) {
+      if (!savedGroup.title || savedGroup.title.trim() === '') {
+        const savedId = savedGroup.savedGuid || savedGroup.id;
+        if (savedId) {
+          const newTitle = `Group ${savedGroup.color || 'grey'}`;
+          await new Promise((resolve) => {
+            chrome.tabGroups.savedGroups.update(savedId, {
+              title: newTitle
+            }, resolve);
+          });
+          console.log(`[Fix] ✓ Fixed unnamed saved group => "${newTitle}" (color: ${savedGroup.color})`);
+          fixedCount++;
+        }
+      }
+    }
+
+    return { 
+      fixed: fixedCount, 
+      total: allSaved.length,
+      message: `Fixed ${fixedCount} unnamed group(s)` 
+    };
+  } catch (error) {
+    console.error('[Fix] Error fixing unnamed groups:', error);
+    return { fixed: 0, error: error.message };
+  }
+}
+
+/**
  * Ungroup specific tabs
  */
 async function ungroupTabs(tabIds) {
@@ -256,15 +491,7 @@ async function ungroupTabs(tabIds) {
  * Update a tab group
  */
 async function updateTabGroup(groupId, updates) {
-  return new Promise((resolve, reject) => {
-    chrome.tabGroups.update(groupId, updates, () => {
-      if (chrome.runtime.lastError) {
-        reject(chrome.runtime.lastError);
-      } else {
-        resolve();
-      }
-    });
-  });
+  return syncTabGroupMetadata(groupId, updates);
 }
 
 /**
@@ -456,12 +683,44 @@ async function autoGroupTab(tab) {
     return;
   }
 
+  // Skip tabs in non-normal windows (popups, devtools, etc.)
+  try {
+    const window = await new Promise((resolve, reject) => {
+      chrome.windows.get(tab.windowId, (win) => {
+        if (chrome.runtime.lastError) {
+          reject(chrome.runtime.lastError);
+        } else {
+          resolve(win);
+        }
+      });
+    });
+
+    if (!window || window.type !== 'normal') {
+      console.log('[AutoGroup] Skipping tab in non-normal window type:', window.type || 'unknown');
+      console.log('[AutoGroup] Tab title:', tab.title, 'URL:', tab.url);
+      return;
+    }
+  } catch (error) {
+    console.warn('[AutoGroup] Could not get window info for tab:', tab.title, 'Error:', error.message);
+    // If we can't get window info, play it safe and skip
+    return;
+  }
+
   try {
     // Import classification functions
     // Note: In service worker, we need to use importScripts or inline the logic
     const classification = await classifyTabForAutoGroup(tab);
 
-    if (!classification || classification.category === 'Other') {
+    console.log('[AutoGroup] Tab:', tab.title, 'URL:', tab.url);
+    console.log('[AutoGroup] Classification:', classification);
+
+    if (!classification || !classification.category) {
+      console.warn('[AutoGroup] No valid classification for tab:', tab.title);
+      return; // Skip if no valid classification
+    }
+
+    if (classification.category === 'Other') {
+      console.log('[AutoGroup] Skipping "Other" category for:', tab.title);
       return; // Don't auto-group "Other" category
     }
 
@@ -498,21 +757,72 @@ async function autoGroupTab(tab) {
         });
       });
 
-      // Update group metadata
-      await new Promise((resolve, reject) => {
-        const validatedColor = validateColor(classification.color, classification.category);
+      // Update group metadata IMMEDIATELY
+      const title = ensureValidTitle(classification.category);
+      const validatedColor = validateColor(classification.color, title);
 
+      console.log('[AutoGroup] Creating group with title:', title, 'color:', validatedColor);
+
+      // First update: Set title and color
+      await new Promise((resolve) => {
         chrome.tabGroups.update(groupId, {
-          title: classification.category,
+          title,
           color: validatedColor
         }, () => {
           if (chrome.runtime.lastError) {
-            reject(chrome.runtime.lastError);
+            console.error('[AutoGroup] Could not set title:', chrome.runtime.lastError);
           } else {
-            resolve();
+            console.log('[AutoGroup] ✓ Title set successfully:', title);
           }
+          resolve();
         });
       });
+
+      // Force UI refresh by toggling collapse state
+      // Collapse first
+      await new Promise((resolve) => {
+        chrome.tabGroups.update(groupId, { collapsed: true }, () => {
+          resolve();
+        });
+      });
+
+      // Longer delay for UI to update
+      await new Promise(resolve => setTimeout(resolve, 50));
+
+      // Then immediately uncollapse to show the name
+      await new Promise((resolve) => {
+        chrome.tabGroups.update(groupId, { collapsed: false }, () => {
+          resolve();
+        });
+      });
+
+      // Wait for Chrome to fully create the saved group before syncing
+      await new Promise(resolve => setTimeout(resolve, 200));
+
+      // Sync to saved groups with retry mechanism
+      // Only attempt if saved groups API is available
+      const hasSavedGroupsAPI = chrome.tabGroups &&
+                             chrome.tabGroups.savedGroups &&
+                             typeof chrome.tabGroups.savedGroups === 'object';
+
+      if (hasSavedGroupsAPI) {
+        try {
+          await syncTabGroupMetadata(groupId, { title, color: validatedColor });
+        } catch (e) {
+          console.warn('[AutoGroup] Saved group sync failed:', e);
+
+          // Retry once after a longer delay
+          await new Promise(resolve => setTimeout(resolve, 300));
+          try {
+            await syncTabGroupMetadata(groupId, { title, color: validatedColor });
+          } catch (retryError) {
+            console.warn('[AutoGroup] Retry also failed:', retryError);
+          }
+        }
+      } else {
+        console.log('[AutoGroup] ℹ️  Saved Groups API not available - skipping bookmark sync');
+        console.log('[AutoGroup] ℹ️  Tab groups will work in tab strip only');
+      }
     }
 
     // After grouping, handle auto-collapse if this is the active tab
@@ -596,11 +906,21 @@ async function applyCustomRulesToState() {
  * Simplified fallback classification (subset of the full logic)
  */
 async function classifyTabFallback(tab) {
-  // Original simplified logic
+  // Get custom rules and learned rules from storage
   const result = await new Promise((resolve) => {
     chrome.storage.local.get(['customDomainRules', 'customKeywordRules'], resolve);
   });
-  // ... continue with original logic
+
+  const customDomainRules = result.customDomainRules || {};
+  const customKeywordRules = result.customKeywordRules || {};
+
+  // Get learned rules
+  let learnedRules = {};
+  try {
+    learnedRules = await getLearnedDomainRules();
+  } catch (e) {
+    // Ignore if learning engine is not available
+  }
 
   // Default domain rules (simplified subset)
   const defaultDomainRules = {
